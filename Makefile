@@ -1,4 +1,4 @@
-obj-m := hid-kye.o hid-uclogic.o hid-polostar.o hid-viewsonic.o
+obj-m := hid-kye.o hid-uclogic.o hid-polostar.o hid-viewsonic.o hid-hanwang.o
 hid-uclogic-objs := \
 	hid-uclogic-core.o \
 	hid-uclogic-rdesc.o \
@@ -19,7 +19,7 @@ DKMS_MODULES = $(DKMS_MODULES_NAME)/$(PACKAGE_VERSION)
 DKMS_SOURCE_DIR = $(DESTDIR)/usr/src/$(DKMS_MODULES_NAME)-$(PACKAGE_VERSION)
 
 modules modules_install clean:
-	$(MAKE) -C $(KDIR) SUBDIRS=$(PWD) $@
+	$(MAKE) -C $(KDIR) M=$(PWD) $@
 
 depmod_conf_install:
 	install -D -m 0644 depmod.conf $(DEPMOD_CONF)
@@ -44,7 +44,8 @@ modules_uninstall:
 	rm -vf /lib/modules/*/extra/hid-kye.ko \
 	       /lib/modules/*/extra/hid-polostar.ko \
 	       /lib/modules/*/extra/hid-uclogic.ko \
-	       /lib/modules/*/extra/hid-viewsonic.ko
+	       /lib/modules/*/extra/hid-viewsonic.ko \
+	       /lib/modules/*/extra/hid-hanwang.ko
 
 install: modules_install udev_rules_install depmod_conf_install xorg_conf_install
 	udevadm control --reload
