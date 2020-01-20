@@ -144,7 +144,7 @@ static __u8 *hanwang_report_fixup(struct hid_device *hdev, __u8 *rdesc,
 	switch (hdev->product)
 	{
 	case USB_DEVICE_ID_PARBLO_A609:
-	case USB_DEVICE_ID_SIGNOTEC_VIEWSONIC_PD1011:
+	case USB_DEVICE_ID_INTEY_NY_BG14:
 		if (*rsize == HANWANG_RDESC_PARBLO_A609_ORIG_SIZE)
 		{
 			rdesc = hanwang_rdesc_parblo_a609_fixed;
