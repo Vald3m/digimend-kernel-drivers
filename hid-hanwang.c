@@ -174,14 +174,24 @@ static int hanwang_init(struct hid_device *hdev)
 	// send feature request to enable digitizer functionality
 	// after this device switch to tablet mode and sends
 	// reports with ID 2
-	u8 buf[0x2] = {0x02, 0x02};
 	int ret;
+	u8 *buf;
+
+	buf = kmalloc(2, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	buf[0] = 0x2;
+	buf[1] = 0x2;
+	//without delay device returns EAGAIN
+	mdelay(10);
 	ret = hid_hw_raw_request(hdev,
-							 0x02,
+							 0x02, 	//feature report ID
 							 buf,
-							 2,
+							 2,		//feature report len
 							 HID_FEATURE_REPORT,
 							 HID_REQ_SET_REPORT);
+	kfree(buf);
 	if (ret < 0)
 	{
 		hid_err(hdev, "Can't set operational mode\n");
