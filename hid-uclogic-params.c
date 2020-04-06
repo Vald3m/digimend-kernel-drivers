@@ -206,8 +206,8 @@ static int uclogic_params_pen_init_v1(struct uclogic_params_pen *pen,
 	 * Generate pen report descriptor
 	 */
 	desc_ptr = uclogic_rdesc_template_apply(
-				uclogic_rdesc_pen_v1_template_arr,
-				uclogic_rdesc_pen_v1_template_size,
+				uclogic_rdesc_v1_pen_template_arr,
+				uclogic_rdesc_v1_pen_template_size,
 				desc_params, ARRAY_SIZE(desc_params));
 	if (desc_ptr == NULL) {
 		rc = -ENOMEM;
@@ -220,8 +220,8 @@ static int uclogic_params_pen_init_v1(struct uclogic_params_pen *pen,
 	memset(pen, 0, sizeof(*pen));
 	pen->desc_ptr = desc_ptr;
 	desc_ptr = NULL;
-	pen->desc_size = uclogic_rdesc_pen_v1_template_size;
-	pen->id = UCLOGIC_RDESC_PEN_V1_ID;
+	pen->desc_size = uclogic_rdesc_v1_pen_template_size;
+	pen->id = UCLOGIC_RDESC_V1_PEN_ID;
 	pen->inrange = UCLOGIC_PARAMS_PEN_INRANGE_INVERTED;
 	found = true;
 finish:
@@ -350,8 +350,8 @@ static int uclogic_params_pen_init_v2(struct uclogic_params_pen *pen,
 	 * Generate pen report descriptor
 	 */
 	desc_ptr = uclogic_rdesc_template_apply(
-				uclogic_rdesc_pen_v2_template_arr,
-				uclogic_rdesc_pen_v2_template_size,
+				uclogic_rdesc_v2_pen_template_arr,
+				uclogic_rdesc_v2_pen_template_size,
 				desc_params, ARRAY_SIZE(desc_params));
 	if (desc_ptr == NULL) {
 		rc = -ENOMEM;
@@ -364,8 +364,8 @@ static int uclogic_params_pen_init_v2(struct uclogic_params_pen *pen,
 	memset(pen, 0, sizeof(*pen));
 	pen->desc_ptr = desc_ptr;
 	desc_ptr = NULL;
-	pen->desc_size = uclogic_rdesc_pen_v2_template_size;
-	pen->id = UCLOGIC_RDESC_PEN_V2_ID;
+	pen->desc_size = uclogic_rdesc_v2_pen_template_size;
+	pen->id = UCLOGIC_RDESC_V2_PEN_ID;
 	pen->inrange = UCLOGIC_PARAMS_PEN_INRANGE_NONE;
 	pen->fragmented_hires = true;
 	pen->tilt_y_flipped = true;
@@ -430,8 +430,8 @@ static int uclogic_params_frame_init_with_desc(
 }
 
 /**
- * uclogic_params_frame_init_v1_buttonpad() - initialize abstract buttonpad
- * on a v1 tablet interface.
+ * uclogic_params_frame_init_v1() - initialize v1 tablet interface frame
+ * controls.
  *
  * @frame:	Pointer to the frame parameters to initialize (to be cleaned
  *		up with uclogic_params_frame_cleanup()). Not modified in case
@@ -445,8 +445,7 @@ static int uclogic_params_frame_init_with_desc(
  * Returns:
  *	Zero, if successful. A negative errno code on error.
  */
-static int uclogic_params_frame_init_v1_buttonpad(
-					struct uclogic_params_frame *frame,
+static int uclogic_params_frame_init_v1(struct uclogic_params_frame *frame,
 					bool *pfound,
 					struct hid_device *hdev)
 {
@@ -485,9 +484,9 @@ static int uclogic_params_frame_init_v1_buttonpad(
 		hid_dbg(hdev, "generic buttons enabled\n");
 		rc = uclogic_params_frame_init_with_desc(
 				frame,
-				uclogic_rdesc_buttonpad_v1_arr,
-				uclogic_rdesc_buttonpad_v1_size,
-				UCLOGIC_RDESC_BUTTONPAD_V1_ID);
+				uclogic_rdesc_v1_frame_arr,
+				uclogic_rdesc_v1_frame_size,
+				UCLOGIC_RDESC_V1_FRAME_ID);
 		if (rc != 0)
 			goto cleanup;
 		found = true;
@@ -510,10 +509,12 @@ cleanup:
 void uclogic_params_cleanup(struct uclogic_params *params)
 {
 	if (!params->invalid) {
+		size_t i;
 		kfree(params->desc_ptr);
-		if (!params->pen_unused)
-			uclogic_params_pen_cleanup(&params->pen);
-		uclogic_params_frame_cleanup(&params->frame);
+		uclogic_params_pen_cleanup(&params->pen);
+		for (i = 0; i < ARRAY_SIZE(params->frame_list); i++) {
+			uclogic_params_frame_cleanup(&params->frame_list[i]);
+		}
 		memset(params, 0, sizeof(*params));
 	}
 }
@@ -540,60 +541,53 @@ int uclogic_params_get_desc(const struct uclogic_params *params,
 				__u8 **pdesc,
 				unsigned int *psize)
 {
-	bool common_present;
-	bool pen_present;
-	bool frame_present;
-	unsigned int size;
+	int rc = -ENOMEM;
+	bool present = false;
+	unsigned int size = 0;
 	__u8 *desc = NULL;
+	size_t i;
 
 	/* Check arguments */
 	if (params == NULL || pdesc == NULL || psize == NULL)
 		return -EINVAL;
 
-	size = 0;
+	/* Concatenate descriptors */
+#define ADD_DESC(_desc_ptr, _desc_size) \
+	do {                                                        \
+		unsigned int new_size;                              \
+		__u8 *new_desc;                                     \
+		if ((_desc_ptr) == NULL) {                          \
+			break;                                      \
+		}                                                   \
+		new_size = size + (_desc_size);                     \
+		new_desc = krealloc(desc, new_size, GFP_KERNEL);    \
+		if (new_desc == NULL) {                             \
+			goto cleanup;                               \
+		}                                                   \
+		memcpy(new_desc + size, (_desc_ptr), (_desc_size)); \
+		desc = new_desc;                                    \
+		size = new_size;                                    \
+		present = true;                                     \
+	} while (0)
 
-	common_present = (params->desc_ptr != NULL);
-	pen_present = (!params->pen_unused && params->pen.desc_ptr != NULL);
-	frame_present = (params->frame.desc_ptr != NULL);
-
-	if (common_present)
-		size += params->desc_size;
-	if (pen_present)
-		size += params->pen.desc_size;
-	if (frame_present)
-		size += params->frame.desc_size;
-
-	if (common_present || pen_present || frame_present) {
-		__u8 *p;
-
-		desc = kmalloc(size, GFP_KERNEL);
-		if (desc == NULL)
-			return -ENOMEM;
-		p = desc;
-
-		if (common_present) {
-			memcpy(p, params->desc_ptr,
-				params->desc_size);
-			p += params->desc_size;
-		}
-		if (pen_present) {
-			memcpy(p, params->pen.desc_ptr,
-				params->pen.desc_size);
-			p += params->pen.desc_size;
-		}
-		if (frame_present) {
-			memcpy(p, params->frame.desc_ptr,
-				params->frame.desc_size);
-			p += params->frame.desc_size;
-		}
-
-		WARN_ON(p != desc + size);
-
-		*psize = size;
+	ADD_DESC(params->desc_ptr, params->desc_size);
+	ADD_DESC(params->pen.desc_ptr, params->pen.desc_size);
+	for (i = 0; i < ARRAY_SIZE(params->frame_list); i++) {
+		ADD_DESC(params->frame_list[i].desc_ptr,
+				params->frame_list[i].desc_size);
 	}
 
-	*pdesc = desc;
-	return 0;
+#undef ADD_DESC
+
+	if (present) {
+		*pdesc = desc;
+		*psize = size;
+		desc = NULL;
+	}
+	rc = 0;
+cleanup:
+	kfree(desc);
+	return rc;
 }
 
 /**
@@ -677,23 +671,8 @@ cleanup:
 }
 
 /**
- * uclogic_params_init_with_pen_unused() - initialize tablet interface
- * parameters preserving original reports and generic HID processing, but
- * disabling pen usage.
- *
- * @params:		Parameters to initialize (to be cleaned with
- *			uclogic_params_cleanup()). Not modified in case of
- *			error. Cannot be NULL.
- */
-static void uclogic_params_init_with_pen_unused(struct uclogic_params *params)
-{
-	memset(params, 0, sizeof(*params));
-	params->pen_unused = true;
-}
-
-/**
- * uclogic_params_init() - initialize a Huion tablet interface and discover
- * its parameters.
+ * uclogic_params_huion_init() - initialize a Huion tablet interface and
+ * discover its parameters.
  *
  * @params:	Parameters to fill in (to be cleaned with
  *		uclogic_params_cleanup()). Not modified in case of error.
@@ -724,10 +703,13 @@ static int uclogic_params_huion_init(struct uclogic_params *params,
 		goto cleanup;
 	}
 
-	/* If it's not a pen interface */
-	if (bInterfaceNumber != 0) {
-		/* TODO: Consider marking the interface invalid */
-		uclogic_params_init_with_pen_unused(&p);
+	/* If it's a custom keyboard interface */
+	if (bInterfaceNumber == 1) {
+		/* Keep everything intact */
+		goto output;
+	/* Else, if it's not a pen interface */
+	} else if (bInterfaceNumber != 0) {
+		uclogic_params_init_invalid(&p);
 		goto output;
 	}
 
@@ -759,20 +741,71 @@ static int uclogic_params_huion_init(struct uclogic_params *params,
 			goto cleanup;
 		} else if (found) {
 			hid_dbg(hdev, "pen v2 parameters found\n");
-			/* Create v2 buttonpad parameters */
+			/* Create v2 frame button parameters */
 			rc = uclogic_params_frame_init_with_desc(
-					&p.frame,
-					uclogic_rdesc_buttonpad_v2_arr,
-					uclogic_rdesc_buttonpad_v2_size,
-					UCLOGIC_RDESC_BUTTONPAD_V2_ID);
+					&p.frame_list[0],
+					uclogic_rdesc_v2_frame_buttons_arr,
+					uclogic_rdesc_v2_frame_buttons_size,
+					UCLOGIC_RDESC_V2_FRAME_BUTTONS_ID);
 			if (rc != 0) {
 				hid_err(hdev,
-					"failed creating v2 buttonpad parameters: %d\n",
+					"failed creating v2 frame button "
+					"parameters: %d\n",
 					rc);
 				goto cleanup;
 			}
-			/* Set bitmask marking frame reports in pen reports */
-			p.pen_frame_flag = 0x20;
+
+			/* Create v2 frame touch ring parameters */
+			rc = uclogic_params_frame_init_with_desc(
+					&p.frame_list[1],
+					uclogic_rdesc_v2_frame_touch_ring_arr,
+					uclogic_rdesc_v2_frame_touch_ring_size,
+					UCLOGIC_RDESC_V2_FRAME_TOUCH_RING_ID);
+			if (rc != 0) {
+				hid_err(hdev,
+					"failed creating v2 frame touch ring "
+					"parameters: %d\n",
+					rc);
+				goto cleanup;
+			}
+			p.frame_list[1].suffix = "Touch Ring";
+			p.frame_list[1].dev_id_byte =
+				UCLOGIC_RDESC_V2_FRAME_TOUCH_RING_DEV_ID_BYTE;
+			p.frame_list[1].touch_ring_byte = 5;
+			p.frame_list[1].touch_ring_max = 12;
+			p.frame_list[1].touch_ring_flip_at = 6;
+
+			/* Create v2 frame dial parameters */
+			rc = uclogic_params_frame_init_with_desc(
+					&p.frame_list[2],
+					uclogic_rdesc_v2_frame_dial_arr,
+					uclogic_rdesc_v2_frame_dial_size,
+					UCLOGIC_RDESC_V2_FRAME_DIAL_ID);
+			if (rc != 0) {
+				hid_err(hdev,
+					"failed creating v2 frame dial "
+					"parameters: %d\n",
+					rc);
+				goto cleanup;
+			}
+			p.frame_list[2].suffix = "Dial";
+			p.frame_list[2].dev_id_byte =
+				UCLOGIC_RDESC_V2_FRAME_DIAL_DEV_ID_BYTE;
+			p.frame_list[2].bitmap_dial_byte = 5;
+
+			/*
+			 * Link button and touch ring subreports from pen
+			 * reports
+			 */
+			p.pen.subreport_list[0].value = 0xe0;
+			p.pen.subreport_list[0].id =
+				UCLOGIC_RDESC_V2_FRAME_BUTTONS_ID;
+			p.pen.subreport_list[1].value = 0xf0;
+			p.pen.subreport_list[1].id =
+				UCLOGIC_RDESC_V2_FRAME_TOUCH_RING_ID;
+			p.pen.subreport_list[2].value = 0xf1;
+			p.pen.subreport_list[2].id =
+				UCLOGIC_RDESC_V2_FRAME_DIAL_ID;
 			goto output;
 		}
 		hid_dbg(hdev, "pen v2 parameters not found\n");
@@ -786,19 +819,20 @@ static int uclogic_params_huion_init(struct uclogic_params *params,
 		goto cleanup;
 	} else if (found) {
 		hid_dbg(hdev, "pen v1 parameters found\n");
-		/* Try to probe v1 buttonpad */
-		rc = uclogic_params_frame_init_v1_buttonpad(
-						&p.frame,
-						&found, hdev);
+		/* Try to probe v1 frame */
+		rc = uclogic_params_frame_init_v1(&p.frame_list[0],
+						  &found, hdev);
 		if (rc != 0) {
-			hid_err(hdev, "v1 buttonpad probing failed: %d\n", rc);
+			hid_err(hdev, "v1 frame probing failed: %d\n", rc);
 			goto cleanup;
 		}
-		hid_dbg(hdev, "buttonpad v1 parameters%s found\n",
+		hid_dbg(hdev, "frame v1 parameters%s found\n",
 			(found ? "" : " not"));
 		if (found) {
-			/* Set bitmask marking frame reports */
-			p.pen_frame_flag = 0x20;
+			/* Link frame button subreports from pen reports */
+			p.pen.subreport_list[0].value = 0xe0;
+			p.pen.subreport_list[0].id =
+				UCLOGIC_RDESC_V1_FRAME_ID;
 		}
 		goto output;
 	}
@@ -984,7 +1018,7 @@ int uclogic_params_init(struct uclogic_params *params,
 	case VID_PID(USB_VENDOR_ID_HUION,
 		     USB_DEVICE_ID_HUION_TABLET):
 	case VID_PID(USB_VENDOR_ID_HUION,
-		     USB_DEVICE_ID_HUION_HS64):
+		     USB_DEVICE_ID_HUION_TABLET2):
 	case VID_PID(USB_VENDOR_ID_UCLOGIC,
 		     USB_DEVICE_ID_HUION_TABLET):
 	case VID_PID(USB_VENDOR_ID_UCLOGIC,
@@ -1022,8 +1056,7 @@ int uclogic_params_init(struct uclogic_params *params,
 				uclogic_params_init_invalid(&p);
 			}
 		} else {
-			/* TODO: Consider marking the interface invalid */
-			uclogic_params_init_with_pen_unused(&p);
+			uclogic_params_init_invalid(&p);
 		}
 		break;
 	case VID_PID(USB_VENDOR_ID_UGEE,
@@ -1038,15 +1071,14 @@ int uclogic_params_init(struct uclogic_params *params,
 			}
 			/* Initialize frame parameters */
 			rc = uclogic_params_frame_init_with_desc(
-				&p.frame,
+				&p.frame_list[0],
 				uclogic_rdesc_xppen_deco01_frame_arr,
 				uclogic_rdesc_xppen_deco01_frame_size,
 				0);
 			if (rc != 0)
 				goto cleanup;
 		} else {
-			/* TODO: Consider marking the interface invalid */
-			uclogic_params_init_with_pen_unused(&p);
+			uclogic_params_init_invalid(&p);
 		}
 		break;
 	case VID_PID(USB_VENDOR_ID_UGEE,
@@ -1063,19 +1095,19 @@ int uclogic_params_init(struct uclogic_params *params,
 			goto cleanup;
 		} else if (found) {
 			rc = uclogic_params_frame_init_with_desc(
-				&p.frame,
+				&p.frame_list[0],
 				uclogic_rdesc_ugee_g5_frame_arr,
 				uclogic_rdesc_ugee_g5_frame_size,
 				UCLOGIC_RDESC_UGEE_G5_FRAME_ID);
 			if (rc != 0) {
 				hid_err(hdev,
-					"failed creating buttonpad parameters: %d\n",
+					"failed creating frame parameters: %d\n",
 					rc);
 				goto cleanup;
 			}
-			p.frame.re_lsb =
+			p.frame_list[0].re_lsb =
 				UCLOGIC_RDESC_UGEE_G5_FRAME_RE_LSB;
-			p.frame.dev_id_byte =
+			p.frame_list[0].dev_id_byte =
 				UCLOGIC_RDESC_UGEE_G5_FRAME_DEV_ID_BYTE;
 		} else {
 			hid_warn(hdev, "pen parameters not found");
@@ -1097,13 +1129,13 @@ int uclogic_params_init(struct uclogic_params *params,
 			goto cleanup;
 		} else if (found) {
 			rc = uclogic_params_frame_init_with_desc(
-				&p.frame,
-				uclogic_rdesc_ugee_ex07_buttonpad_arr,
-				uclogic_rdesc_ugee_ex07_buttonpad_size,
+				&p.frame_list[0],
+				uclogic_rdesc_ugee_ex07_frame_arr,
+				uclogic_rdesc_ugee_ex07_frame_size,
 				0);
 			if (rc != 0) {
 				hid_err(hdev,
-					"failed creating buttonpad parameters: %d\n",
+					"failed creating frame parameters: %d\n",
 					rc);
 				goto cleanup;
 			}
