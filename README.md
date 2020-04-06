@@ -163,7 +163,7 @@ After installing the drivers, make sure the previous versions of the drivers
 were unloaded. To do that, simply reboot the machine. Alternatively, execute
 the following command:
 
-    sudo modprobe -r hid-kye hid-uclogic hid-polostar hid-viewsonic
+    sudo modprobe -r hid-kye hid-uclogic hid-polostar hid-viewsonic hid-hanwang
 
 and reconnect the tablet.
 
