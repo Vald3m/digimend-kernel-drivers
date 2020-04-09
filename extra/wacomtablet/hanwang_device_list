@@ -1,0 +1,28 @@
+[9091]
+model=A690
+layout=bl_8
+name=Parblo Island A609
+padbuttons=4
+wheel=no
+touchring=no
+touchstripl=no
+touchstripr=no
+hwbutton1=1
+hwbutton2=2
+hwbutton3=3
+hwbutton4=8
+
+[9095]
+model=NY-BG14
+layout=bl_8
+name=Intey NY-BG14
+padbuttons=4
+wheel=no
+touchring=no
+touchstripl=no
+touchstripr=no
+hwbutton1=1
+hwbutton2=2
+hwbutton3=3
+hwbutton4=8
+]

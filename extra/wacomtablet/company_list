@@ -1,0 +1,6 @@
+#append next section into /usr/share/wacomtablet/data/companylist
+
+[0b57]
+name=HanWang
+listfile=hanwang_devicelist
+driver=wacom-tools
