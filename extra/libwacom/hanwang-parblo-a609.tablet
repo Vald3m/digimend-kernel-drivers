@@ -1,0 +1,38 @@
+# HANWANG
+# Parblo Island A609
+#
+# Button Map:
+# (A=1, B=2, C=3, D = 4)
+#
+#       *-----------------------*
+#    A  |                       |
+#       |                       |
+#    B  |                       |
+#       |        TABLET         |
+#    C  |                       |
+#       |                       |
+#    D  |                       |
+#       *-----------------------*
+
+
+[Device]
+Name=Parblo Island A609
+ModelName=A609
+DeviceMatch=usb:0b57:9091;usb:0b57:9095
+Class=Bamboo
+Width=9
+Height=6
+IntegratedIn=
+Layout=hanwang-parblo-a609.svg
+Styli=0xfffff;0xffffd;
+
+
+[Features]
+Stylus=true
+Reversible=true
+Touch=false
+Buttons=4
+
+[Buttons]
+Left=A;B;C;D
+EvdevCodes=0x100;0x101;0x102;0x103
