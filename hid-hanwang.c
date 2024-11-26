@@ -16,6 +16,7 @@
 #include <linux/hid.h>
 #include <linux/module.h>
 #include <linux/usb.h>
+#include <linux/version.h>
 
 #include "hid-ids.h"
 
@@ -138,8 +139,13 @@ __u8 hanwang_rdesc_parblo_a609_fixed[] = {
 	0xC0                /*  End Collection                      */
 };
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0)
+static const __u8 *hanwang_report_fixup(struct hid_device *hdev, __u8 *rdesc,
+		unsigned int *rsize)
+#else
 static __u8 *hanwang_report_fixup(struct hid_device *hdev, __u8 *rdesc,
-								  unsigned int *rsize)
+		unsigned int *rsize)
+#endif
 {
 	switch (hdev->product)
 	{
