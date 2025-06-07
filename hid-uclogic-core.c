@@ -481,8 +481,11 @@ static int uclogic_raw_event(struct hid_device *hdev,
 static void uclogic_remove(struct hid_device *hdev)
 {
 	struct uclogic_drvdata *drvdata = hid_get_drvdata(hdev);
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+	timer_delete_sync(&drvdata->inrange_timer);
+#else
 	del_timer_sync(&drvdata->inrange_timer);
+#endif
 	hid_hw_stop(hdev);
 	kfree(drvdata->desc_ptr);
 	uclogic_params_cleanup(&drvdata->params);
