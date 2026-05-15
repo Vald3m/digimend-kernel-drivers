@@ -308,6 +308,28 @@ static void hanwang_remove(struct hid_device *hdev)
 	hid_hw_stop(hdev);
 }
 
+static int hanwang_input_configured(struct hid_device *hdev,
+                                    struct hid_input *hi)
+{
+	struct input_dev *input = hi->input;
+
+	if (!input)
+		return 0;
+
+	/*
+	 * Set explicit tablet resolution.
+	 * Values are in units/mm.
+	 * X axix 22352/9/25.4 = 97.(7)
+	 * Y axis 13970/6/25.4 = 91.(6)
+	 */
+
+	input_abs_set_res(input, ABS_X, 100);
+	input_abs_set_res(input, ABS_Y, 100);
+	hid_err(hdev, "Axis resolutions are seto to 100");
+
+	return 0;
+}
+
 #ifdef CONFIG_PM
 static int hanwang_resume(struct hid_device *hdev)
 {
@@ -337,6 +359,7 @@ static struct hid_driver hanwang_driver = {
 	.remove = hanwang_remove,
 	.raw_event = hanwang_raw_event,
 	.report_fixup = hanwang_report_fixup,
+	.input_configured = hanwang_input_configured,
 #ifdef CONFIG_PM
 	.resume = hanwang_resume,
 	.reset_resume = hanwang_resume,
